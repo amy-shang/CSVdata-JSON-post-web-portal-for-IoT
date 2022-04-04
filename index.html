@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Post CSV data to SensorThings</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+  <script src="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+  <script src="http://ajax.aspnetcdn.com/ajax/jquery.validate/1.9/jquery.validate.min.js"></script>
+  <script src="papaparse.min.js"></script>
+  <style type="text/css">
+    .my-error-class {
+    color:red;
+    }
+    .my-valid-class {
+    color:black;
+    }
+  </style>
+  <script type="text/javascript">
+   function parseCSV() {
+     var csvData = $("#csv_data").val();
+     var results = Papa.parse(csvData, {
+       comments: "#"
+     });
+     console.log(results);
+     console.log(results.data.length);
+     var observations = [];
+     var datastreamID = $("#datastream_id").val();
+     var csv_obser_field = $("#csv_obser_field").val();
+     var csvTime = $("#csv_time_field").val();
+     var obser_index = results.data[0].indexOf(csv_obser_field);
+     var time_index = results.data[0].indexOf(csvTime);
+     if (obser_index == -1) {
+       obser_index = results.data[0].length - 1
+     };
+     if (time_index == -1) {
+       time_index = results.data[0].length - 1
+     };
+     console.log(obser_index);
+     console.log(time_index);
+     for (var i = results.data.length - 1; i >= 1; i--) {
+       var record = {};
+       var real_data = results.data[i];
+       record.result = real_data[obser_index];
+       console.log(typeof(record.result));
+       //var time=new Date(real_data[time_index]);
+       //var newTime = time+' GMT+00:00'
+       record.phenomenonTime = new Date(real_data[time_index] + ' GMT+00:00');
+       record.Datastream = {};
+       record.Datastream.id = parseInt(datastreamID);
+       observations.push(record);
+       console.log(observations);
+     };
+     alert(JSON.stringify(observations));
+     postData(observations);
+
+   };
+
+   function postData(obser_data) {
+     var obserURL = "http://184.70.194.230/OGCSensorThings/v1.0/Observations";
+     var response_data = [];
+     var success_counter = 0;
+     var error_counter = 0;
+     for (var i = obser_data.length - 1; i >= 0; i--) {
+       $.ajax({
+         type: "POST",
+         url: obserURL,
+         data: JSON.stringify(obser_data[i]),
+         contentType: "application/json",
+         dataType: "json",
+         success: function(data) {
+           response_data.push(data);
+           success_counter++;
+         },
+         error: function(data) {
+           var error_message = "Sorry, POST failed ! Error message is :" + JSON.stringify(data);
+           response_data.push(error_message);
+           error_counter++;
+         }
+       }).done(function() {
+         var total_length = obser_data.length;
+         $("#csv_data").val(JSON.stringify(response_data));
+         var counter_message = "You have tried to post totally " + total_length + " Observations;" + "Successfully Posted: " + success_counter + ";Unsuccessfully Posted: " + error_counter + ".";
+         $("#reponse_counter").text(counter_message);
+       });
+
+     };
+
+   };
+   $(document).ready(function() {
+     $("#clear_button").click(function() {
+       $("#csv_data").val('');
+       $("#datastream_id").val('');
+       $("#csv_obser_field").val('');
+       $("#csv_time_field").val('');
+       $("#csv_data").css('color', 'black');
+       $("#reponse_counter").text('');
+
+     });
+     $("#reponse_counter").css('color', '#0033FF');
+     $("#post_button").click(function() {
+       $("#form").submit();
+     });
+     $("#form").validate({
+       errorClass: "my-error-class",
+       validClass: "my-valid-class",
+
+       // Specify the validation rules
+       rules: {
+         datastream_id: "required",
+         csv_obser_field: "required",
+         csv_time_field: "required",
+         csv_data: "required"
+       },
+
+       // Specify the validation error messages
+       messages: {
+         datastream_id: "Please enter Datastream ID",
+         csv_obser_field: "Please enter Observation field in your CSV file",
+         csv_time_field: "Please enter Time field in your CSV file",
+         csv_data: "Please Paste CSV data"
+       },
+
+       submitHandler: function(form) {
+         //alert("form validated")
+         parseCSV();
+       }
+     });
+   })
+
+</script>
+</head>
+<body>
+  <div class="container">
+    <nav class="navbar navbar-inverse">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="#">Post CSV Data to SensorThings Service</a>
+        </div>
+      </div>
+    </nav>
+    <form role="form" id="form" action="" method="post">
+      <div class="form-group row">
+        <div class="col-xs-6">
+          <label for="usr">Datastream ID in SensorThings Service</label>
+          <input type="text" class="form-control"  id="datastream_id" name="datastream_id" placeholder="Input Datastream ID">
+        </div>
+      </div>
+
+      <div class="form-group row">
+        <div class="col-xs-6">
+          <label for="pwd">Observation Field in Your CSV File:</label>
+          <input type="text" class="form-control" id="csv_obser_field" name="csv_obser_field" placeholder="Input observation field in CSV">
+        </div>  
+      </div>
+
+      <div class="form-group row">
+        <div class="col-xs-6">
+          <label for="pwd">Time Field in your CSV File:</label>
+          <input type="text" class="form-control" id="csv_time_field" name="csv_time_field" placeholder="Input Time field in CSV">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="comment">CSV Data:</label>
+        <textarea class="form-control" rows="7" id="csv_data" name="csv_data" placeholder="Paste your CSV data here"></textarea>
+      </div>
+
+    </form>
+    <p id="reponse_counter"><b></b></p>
+    <button type="button submit" class="btn btn-success" id="post_button" >Post Data to SensorThings Service</button>
+    <button type="button" class="btn btn-primary" id="clear_button">Clear contents</button>
+
+  </div>
+</body>
+</html>
